@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'auth/auth_gate.dart';
+import 'pages/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,7 +73,7 @@ class POSApp extends StatelessWidget {
           labelStyle: TextStyle(color: Colors.grey),
         ),
       ),
-      home: const AuthGate(),
+      home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
     );
   }

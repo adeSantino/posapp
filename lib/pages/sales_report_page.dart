@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/order_service.dart';
-import '../services/pdf_service.dart';
+import '../services/image_report_service.dart';
 
 class SalesReportPage extends StatefulWidget {
   const SalesReportPage({super.key});
@@ -123,20 +123,153 @@ class _SalesReportPageState extends State<SalesReportPage> {
   List<Map<String, dynamic>> get _cardOrdersList => _filteredOrders.where((order) => order['payment'] == 'Card').toList();
 
       Future<void> _downloadCardSalesReport() async {
+        print('=== DEBUG: Starting card sales report download ===');
+        print('Total orders loaded: ${_orders.length}');
+        print('Filtered orders: ${_filteredOrders.length}');
+        print('Card orders list: ${_cardOrdersList.length}');
+        
+        // Debug: Print all orders to see what we have
+        if (_orders.isNotEmpty) {
+          print('Sample of all orders:');
+          for (int i = 0; i < (_orders.length > 3 ? 3 : _orders.length); i++) {
+            print('Order $i: ${_orders[i]}');
+          }
+          
+          // Check payment types
+          final paymentTypes = _orders.map((order) => order['payment']).toSet();
+          print('Payment types found: $paymentTypes');
+          
+          // Count orders by payment type
+          final cashCount = _orders.where((order) => order['payment'] == 'Cash').length;
+          final cardCount = _orders.where((order) => order['payment'] == 'Card').length;
+          final otherCount = _orders.where((order) => order['payment'] != 'Cash' && order['payment'] != 'Card').length;
+          print('Payment breakdown - Cash: $cashCount, Card: $cardCount, Other: $otherCount');
+        }
+        
+        // Debug: Print card orders specifically
+        if (_cardOrdersList.isNotEmpty) {
+          print('Card orders found:');
+          for (int i = 0; i < (_cardOrdersList.length > 3 ? 3 : _cardOrdersList.length); i++) {
+            print('Card Order $i: ${_cardOrdersList[i]}');
+          }
+        }
+
         if (_cardOrdersList.isEmpty) {
-          _showErrorSnackBar('No card orders found to download');
+          print('No card orders found in _cardOrdersList');
+          print('Generating test Excel with sample data...');
+          
+          // Generate test Excel with sample data
+          final sampleOrders = [
+            {
+              'id': 1,
+              'employee_name': 'Test Employee 1',
+              'department': 'IT Department',
+              'food_order': '2x Burger, 1x Fries',
+              'price': 150,
+              'payment': 'Card',
+              'created_at': DateTime.now().subtract(Duration(days: 1)).toIso8601String(),
+            },
+            {
+              'id': 2,
+              'employee_name': 'Test Employee 2',
+              'department': 'HR Department',
+              'food_order': '1x Pizza, 2x Drinks',
+              'price': 200,
+              'payment': 'Card',
+              'created_at': DateTime.now().subtract(Duration(days: 2)).toIso8601String(),
+            },
+            {
+              'id': 3,
+              'employee_name': 'Test Employee 3',
+              'department': 'Finance Department',
+              'food_order': '3x Sandwich, 1x Coffee',
+              'price': 120,
+              'payment': 'Card',
+              'created_at': DateTime.now().subtract(Duration(days: 3)).toIso8601String(),
+            }
+          ];
+          
+          try {
+            await ImageReportService.downloadCardSalesReport(
+              cardOrders: sampleOrders,
+              reportTitle: 'Test Card Table Sales Report',
+              startDate: DateTime.now().subtract(Duration(days: 5)),
+              endDate: DateTime.now(),
+            );
+            _showSuccessSnackBar('Test image report generated successfully with sample data');
+          } catch (e) {
+            print('Test image generation failed: $e');
+            _showErrorSnackBar('Test image generation failed: $e');
+          }
           return;
         }
 
         try {
-          final filePath = await PDFService.savePDFToDevice(
-            cardOrders: _cardOrdersList,
-            reportTitle: 'Card Sales Report',
-            startDate: _startDate ?? DateTime.now().subtract(Duration(days: 30)),
-            endDate: _endDate ?? DateTime.now(),
+          // Use all card orders (no date restriction)
+          final allCardOrders = _cardOrdersList;
+          print('Processing ${allCardOrders.length} card orders for Excel');
+          
+          // Set date range to cover all orders
+          DateTime startDate = DateTime.now();
+          DateTime endDate = DateTime.now();
+          
+          if (allCardOrders.isNotEmpty) {
+            // Find the earliest and latest dates from the orders
+            final dates = allCardOrders.map((order) {
+              final createdAt = order['created_at'];
+              if (createdAt == null) return DateTime.now();
+              try {
+                return DateTime.parse(createdAt.toString());
+              } catch (e) {
+                return DateTime.now();
+              }
+          }).toList();
+
+            startDate = dates.reduce((a, b) => a.isBefore(b) ? a : b);
+            endDate = dates.reduce((a, b) => a.isAfter(b) ? a : b);
+          }
+
+          // Debug: Print order structure
+          if (allCardOrders.isNotEmpty) {
+            print('Sample order structure: ${allCardOrders.first}');
+            print('All order keys: ${allCardOrders.first.keys.toList()}');
+            print('Total card orders: ${allCardOrders.length}');
+            print('Date range: ${startDate.toString()} to ${endDate.toString()}');
+          } else {
+            print('No card orders found');
+            // Test with sample data if no real data
+            final sampleOrders = [
+              {
+                'id': 1,
+                'employee_name': 'Test Employee',
+                'department': 'Test Department',
+                'food_order': 'Test Food Order',
+                'price': 100,
+                'payment': 'Card',
+                'created_at': DateTime.now().toIso8601String(),
+              }
+            ];
+            print('Testing with sample data...');
+            await ImageReportService.downloadCardSalesReport(
+              cardOrders: sampleOrders,
+              reportTitle: 'Test Card Table Sales Report',
+              startDate: DateTime.now().subtract(Duration(days: 1)),
+              endDate: DateTime.now(),
+            );
+            _showSuccessSnackBar('Test image generated successfully');
+            return;
+          }
+
+          print('Calling ImageReportService with ${allCardOrders.length} orders');
+          await ImageReportService.downloadCardSalesReport(
+            cardOrders: allCardOrders,
+            reportTitle: 'Card Table Sales Report',
+            startDate: startDate,
+            endDate: endDate,
           );
-          _showSuccessSnackBar('Card sales report downloaded to: $filePath');
+          _showSuccessSnackBar('Card table sales report image downloaded successfully');
         } catch (e) {
+          print('Image Download Error: $e');
           _showErrorSnackBar('Failed to download report: $e');
         }
       }
@@ -154,7 +287,7 @@ class _SalesReportPageState extends State<SalesReportPage> {
               IconButton(
                 icon: Icon(Icons.download, color: Colors.white),
                 onPressed: _downloadCardSalesReport,
-                tooltip: 'Download Card Sales Report',
+                tooltip: 'Download Card Table Sales Report as Image',
               ),
               IconButton(
                 icon: Icon(Icons.refresh, color: Colors.white),
@@ -358,7 +491,7 @@ class _SalesReportPageState extends State<SalesReportPage> {
                                       ElevatedButton.icon(
                                         onPressed: _downloadCardSalesReport,
                                         icon: Icon(Icons.download, color: Colors.white, size: 16),
-                                        label: Text('Download Card Report', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                        label: Text('Download Image Report', style: TextStyle(color: Colors.white, fontSize: 12)),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.blue,
                                           shape: RoundedRectangleBorder(
